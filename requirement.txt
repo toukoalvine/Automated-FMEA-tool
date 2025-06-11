@@ -2,7 +2,7 @@ streamlit
 pandas
 streamlit-authenticator
 streamlit
-SQLAlchemy
+sqlalchemy
 xlsxwriter
 sqlite3
 werkzeug.security
