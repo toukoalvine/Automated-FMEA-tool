@@ -5,8 +5,6 @@ streamlit
 SQLAlchemy
 xlsxwriter
 sqlite3
-sqlalchemy.ext
-sqlalchemy.orm
 werkzeug.security
 datetime
 
