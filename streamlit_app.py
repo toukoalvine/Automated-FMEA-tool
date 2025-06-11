@@ -1,7 +1,7 @@
 import streamlit as st
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from SQLAlchemy import create_engine
+from SQLAlchemy.ext.declarative import declarative_base
+from SQLAlchemy.orm import sessionmaker, relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date
 import pandas as pd
