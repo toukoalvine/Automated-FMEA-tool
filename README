@@ -1,6 +1,7 @@
 
 ##Installation
 pip install -r requirements.txt 
+pip install sqlalchemy streamlit
 
 ## Repository klonen:
 git clone https://github.com/toukoalvine/Automated-FMEA-tool
