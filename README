@@ -1,13 +1,6 @@
 
 ##Installation
-pip install -r requirements.txt 
-
-## Repository klonen:
-git clone https://github.com/toukoalvine/Automated-FMEA-tool
-
-##Virtuelle Umgebung
-python -m venv .venv
-source .venv/bin/activate  # oder .venv\Scripts\activate auf Windows
+pip install -r requirements.txt
 
 ##app starten
 streamlit run streamlit_app.py
