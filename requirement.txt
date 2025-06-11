@@ -1,5 +1,10 @@
 streamlit
 pandas
 streamlit-authenticator
-pyyaml
 xlsxwriter
+sqlalchemy
+sqlalchemy.ext
+sqlalchemy.orm
+werkzeug.security
+datetime
+
