@@ -1,8 +1,10 @@
 streamlit
 pandas
 streamlit-authenticator
-xlsxwriter
+streamlit
 sqlalchemy
+xlsxwriter
+sqlite3
 sqlalchemy.ext
 sqlalchemy.orm
 werkzeug.security
