@@ -2,7 +2,7 @@ streamlit
 pandas
 streamlit-authenticator
 streamlit
-sqlalchemy
+SQLAlchemy
 xlsxwriter
 sqlite3
 sqlalchemy.ext
