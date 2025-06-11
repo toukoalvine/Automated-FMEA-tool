@@ -1,10 +1,5 @@
-streamlit
-pandas
-streamlit-authenticator
-streamlit
-sqlalchemy
-xlsxwriter
-sqlite3
-werkzeug.security
-datetime
+streamlit>=1.28.0
+sqlalchemy>=1.4.0
+werkzeug>=2.0.0
+pandas>=1.5.0
 
