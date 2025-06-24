@@ -1,333 +1,220 @@
-# FMEA System - Systemanforderungen und Abhängigkeiten
+# FMEA - Fehler-Möglichkeits- und Einfluss-Analyse System
 
-## 🌐 Browser-Anforderungen
+Ein webbasiertes System zur Durchführung und Verwaltung von FMEA (Failure Mode and Effects Analysis) mit benutzerbasierter Zugriffskontrolle.
 
-### Unterstützte Browser (Minimum-Versionen)
-```
-Chrome >= 60.0
-Firefox >= 55.0
-Safari >= 12.0
-Edge >= 79.0
-Opera >= 47.0
-```
+## 🚀 Features
 
-### Nicht unterstützte Browser
-```
-Internet Explorer (alle Versionen)
-Chrome < 60
-Firefox < 55
-Safari < 12
-```
+### Kernfunktionen
+- **FMEA-Einträge verwalten**: Erstellen, bearbeiten und löschen von FMEA-Einträgen
+- **Automatische RPN-Berechnung**: Risk Priority Number wird automatisch aus A × E × E berechnet
+- **Risikokategorisierung**: Visuelle Kennzeichnung von Hoch-, Mittel- und Niedrigrisiko-Einträgen
+- **Such- und Filterfunktionen**: Durchsuchen nach Funktionen, Fehlerarten, Ursachen
+- **CSV-Export**: Exportieren aller FMEA-Daten für weitere Analysen
 
-## 💻 Systemanforderungen
+### Benutzerverwaltung
+- **Rollenbasierte Zugriffskontrolle**: Admin- und Benutzerollen
+- **Sichere Anmeldung**: Login-System mit vordefinierten Demo-Accounts
+- **Eingeschränkte Berechtigungen**: Benutzer können nur anzeigen und bearbeiten, Admins können auch löschen
 
-### Minimale Hardware-Anforderungen
-```
-Prozessor: 1 GHz Single-Core
-RAM: 2 GB
-Festplatte: 10 MB freier Speicher
-Bildschirm: 1024x768 Pixel
-```
+### Benutzeroberfläche
+- **Modernes Design**: Glassmorphism-Effekte mit animierten Übergängen
+- **Responsive Layout**: Funktioniert auf Desktop, Tablet und Mobile
+- **Intuitive Bedienung**: Benutzerfreundliche Modals und Formulare
+- **Echtzeit-Filterung**: Sofortige Ergebnisse beim Suchen und Filtern
 
-### Empfohlene Hardware-Spezifikationen
-```
-Prozessor: 2 GHz Dual-Core oder besser
-RAM: 4 GB oder mehr
-Festplatte: 100 MB freier Speicher
-Bildschirm: 1920x1080 Pixel oder höher
-Grafikkarte: Hardware-beschleunigte Grafiken aktiviert
-```
+## 📋 Systemanforderungen
 
-## 🔧 Technische Abhängigkeiten
+### Minimale Anforderungen
+- **Webbrowser**: Chrome 60+, Firefox 55+, Safari 12+, Edge 79+
+- **JavaScript**: Muss aktiviert sein
+- **Bildschirmauflösung**: Mindestens 1024x768 (empfohlen: 1920x1080)
 
-### Frontend-Technologien
-```
-HTML5 (erforderlich)
-CSS3 (erforderlich)
-  - Flexbox-Support
-  - Grid-Layout-Support
-  - CSS-Animationen
-  - Backdrop-Filter (für Glassmorphism-Effekte)
-JavaScript ES6+ (erforderlich)
-  - Arrow Functions
-  - Template Literals
-  - Destructuring
-  - Spread Operator
-  - async/await (für zukünftige Erweiterungen)
-```
+### Empfohlene Systemspezifikationen
+- **RAM**: 4 GB oder mehr
+- **Prozessor**: Dual-Core 2.0 GHz oder besser
+- **Internetverbindung**: Für CDN-Ressourcen (falls verwendet)
 
-### Browser-APIs
-```
-DOM API (erforderlich)
-localStorage API (optional - für zukünftige Persistierung)
-sessionStorage API (optional)
-File API (für CSV-Export)
-Blob API (für Datei-Downloads)
-```
+## 🛠️ Installation und Setup
 
-### CSS-Features
-```
-Flexbox (erforderlich)
-CSS Grid (erforderlich)
-CSS Transforms (erforderlich)
-CSS Transitions (erforderlich)
-CSS Animations (erforderlich)
-Backdrop-filter (optional - für Glassmorphism)
-CSS Custom Properties (empfohlen)
-Media Queries (erforderlich für Responsive Design)
-```
+### Option 1: Direkte Nutzung
+1. Laden Sie die `fmea-app.html` Datei herunter
+2. Öffnen Sie die Datei in einem modernen Webbrowser
+3. Das System ist sofort einsatzbereit
 
-### JavaScript-Features
-```
-ES6 Modules (optional)
-Promise API (empfohlen)
-Fetch API (für zukünftige Backend-Integration)
-JSON API (erforderlich)
-Array Methods (map, filter, reduce, find, etc.)
-String Methods (includes, toLowerCase, etc.)
-Math Object (für RPN-Berechnungen)
-Date Object (für Zeitstempel)
-```
+### Option 2: Webserver-Deployment
+1. Kopieren Sie die HTML-Datei auf Ihren Webserver
+2. Stellen Sie sicher, dass der Server statische HTML-Dateien ausliefern kann
+3. Greifen Sie über die URL auf die Anwendung zu
 
-## 🌍 Netzwerk-Anforderungen
-
-### Für lokale Nutzung
-```
-Keine Internetverbindung erforderlich
-Lokaler Dateizugriff muss erlaubt sein
-```
-
-### Für Webserver-Deployment
-```
-HTTP/HTTPS-Server erforderlich
-Statische Datei-Auslieferung
-MIME-Type für .html Dateien konfiguriert
-```
-
-### Für erweiterte Features (optional)
-```
-CDN-Zugriff für externe Bibliotheken:
-  - fonts.googleapis.com (für Web-Fonts)
-  - cdnjs.cloudflare.com (für JavaScript-Bibliotheken)
-```
-
-## 🔒 Sicherheitsanforderungen
-
-### Browser-Sicherheit
-```
-JavaScript muss aktiviert sein
-Content Security Policy (CSP) kompatibel
-Same-Origin-Policy beachten
-XSS-Schutz aktiviert
-```
-
-### Datenschutz
-```
-Keine Cookies verwendet
-Keine externen Tracking-Dienste
-Lokale Datenspeicherung nur temporär
-Keine Übertragung sensibler Daten
-```
-
-## 📱 Mobile Anforderungen
-
-### Responsive Design
-```
-Minimum Touch-Target: 44px x 44px
-Viewport Meta-Tag support
-Touch-Events support
-Orientation-Change support
-```
-
-### Mobile Browser
-```
-Chrome Mobile >= 60
-Safari Mobile >= 12
-Firefox Mobile >= 55
-Samsung Internet >= 7.0
-```
-
-## 🚀 Performance-Anforderungen
-
-### Client-seitige Performance
-```
-Maximale Ladezeit: < 3 Sekunden
-Smooth Scrolling: 60 FPS
-Animationen: Hardware-beschleunigt
-Speicherverbrauch: < 50 MB
-```
-
-### Datenverarbeitung
-```
-Maximale FMEA-Einträge: 1000 (empfohlen)
-Suchzeit: < 500ms
-Filterzeit: < 200ms
-CSV-Export: < 2 Sekunden
-```
-
-## 🔧 Entwicklungsumgebung
-
-### Für lokale Entwicklung
-```
-Node.js >= 14.0 (optional - für Development Server)
-Python >= 3.6 (optional - für HTTP-Server)
-Git (für Versionskontrolle)
-Code-Editor mit HTML/CSS/JS-Support
-```
-
-### Empfohlene Tools
-```
-Visual Studio Code
-  - HTML/CSS/JS-Extensions
-  - Live Server Extension
-  - Prettier Code Formatter
-  - ESLint
-```
-
-### Development Server (optional)
+### Option 3: Lokale Entwicklung
 ```bash
-# Python HTTP-Server
+# Einfacher HTTP-Server mit Python (Python 3)
 python -m http.server 8000
 
-# Node.js HTTP-Server
-npx http-server -p 8000
+# Oder mit Node.js (falls installiert)
+npx http-server
 
-# Live Server (VS Code Extension)
-# Rechtsklick > "Open with Live Server"
+# Dann im Browser öffnen:
+# http://localhost:8000/fmea-app.html
 ```
 
-## 🧪 Testing-Anforderungen
+## 👤 Demo-Zugänge
 
-### Browser-Testing
-```
-Chrome DevTools (für Debugging)
-Firefox Developer Tools
-Safari Web Inspector
-Edge DevTools
-```
+Das System kommt mit vordefinierten Demo-Accounts:
 
-### Responsive Testing
-```
-Desktop: 1920x1080, 1366x768
-Tablet: 1024x768, 768x1024
-Mobile: 375x667, 414x896, 360x640
-```
+| Rolle | Benutzername | Passwort | Berechtigungen |
+|-------|-------------|----------|---------------|
+| Admin | `admin` | `admin123` | Vollzugriff (Erstellen, Bearbeiten, Löschen, Export) |
+| Benutzer | `user` | `user123` | Eingeschränkt (Anzeigen, Bearbeiten, Export) |
 
-### Accessibility Testing
-```
-Screen Reader Kompatibilität
-Keyboard Navigation
-Color Contrast (WCAG 2.1 AA)
-Focus Management
-```
+## 📊 FMEA-Bewertungsskala
 
-## 📦 Deployment-Anforderungen
+### Auftretenswahrscheinlichkeit (A)
+- **1-2**: Sehr gering bis gering
+- **3-4**: Mäßig bis hoch  
+- **5-6**: Sehr hoch bis gefährlich
+- **7-8**: Sehr gefährlich bis extrem gefährlich
+- **9-10**: Kritisch bis katastrophal
 
-### Webserver-Konfiguration
-```apache
-# Apache .htaccess (optional)
-<IfModule mod_mime.c>
-    AddType text/html .html
-    AddType text/css .css
-    AddType application/javascript .js
-</IfModule>
+### Auftreten (E)
+- **1-2**: Sehr unwahrscheinlich bis unwahrscheinlich
+- **3-4**: Gelegentlich bis mäßig häufig
+- **5-6**: Häufig bis sehr häufig
+- **7-8**: Hoch bis sehr hoch
+- **9-10**: Extrem hoch bis sehr extrem hoch
 
-# Gzip Compression (empfohlen)
-<IfModule mod_deflate.c>
-    AddOutputFilterByType DEFLATE text/html text/css application/javascript
-</IfModule>
-```
+### Entdeckung (E)
+- **1-2**: Sehr hoch bis hoch (Entdeckungswahrscheinlichkeit)
+- **3-4**: Mäßig hoch bis mäßig
+- **5-6**: Gering bis sehr gering
+- **7-8**: Niedrig bis sehr niedrig
+- **9-10**: Extrem niedrig bis unwahrscheinlich
 
-```nginx
-# Nginx Konfiguration (optional)
-location ~* \.(html|css|js)$ {
-    expires 1h;
-    add_header Cache-Control "public, immutable";
+### RPN-Risikokategorien
+- **🔴 Hochrisiko**: RPN > 100 (Sofortige Maßnahmen erforderlich)
+- **🟡 Mittelrisiko**: RPN 50-100 (Maßnahmen planen)
+- **🟢 Niedrigrisiko**: RPN < 50 (Überwachung ausreichend)
+
+## 🎯 Bedienungsanleitung
+
+### 1. Anmeldung
+- Öffnen Sie die Anwendung im Browser
+- Verwenden Sie einen der Demo-Accounts
+- Klicken Sie auf "Anmelden"
+
+### 2. FMEA-Einträge erstellen
+- Klicken Sie auf "Neuer Eintrag"
+- Füllen Sie alle Pflichtfelder aus
+- Wählen Sie Bewertungen von 1-10 für A, E, E
+- Klicken Sie "Speichern"
+
+### 3. Einträge bearbeiten
+- Klicken Sie "Bearbeiten" bei einem Eintrag
+- Ändern Sie die gewünschten Werte
+- Speichern Sie die Änderungen
+
+### 4. Suchen und Filtern
+- **Textsuche**: Geben Sie Suchbegriffe in das Suchfeld ein
+- **Risikofilter**: Filtern Sie nach Hoch-, Mittel- oder Niedrigrisiko
+- **Statusfilter**: Filtern Sie nach Bearbeitungsstatus
+
+### 5. Daten exportieren
+- Klicken Sie auf "Export CSV"
+- Die Datei wird automatisch heruntergeladen
+- Öffnen Sie in Excel oder einem anderen Tabellenkalkulationsprogramm
+
+## 🔧 Technische Details
+
+### Technologie-Stack
+- **Frontend**: Vanilla HTML5, CSS3, JavaScript (ES6+)
+- **Styling**: Custom CSS mit Glassmorphism-Effekten
+- **Datenspeicherung**: Lokaler Browser-Speicher (JavaScript-Variablen)
+- **Keine Backend-Abhängigkeiten**: Vollständig clientseitig
+
+### Browser-Kompatibilität
+- ✅ Chrome 60+
+- ✅ Firefox 55+  
+- ✅ Safari 12+
+- ✅ Edge 79+
+- ❌ Internet Explorer (nicht unterstützt)
+
+### Datenformat
+Interne Datenstruktur für FMEA-Einträge:
+```javascript
+{
+  id: number,
+  function: string,
+  failureMode: string,
+  failureEffect: string,
+  severity: number (1-10),
+  failureCause: string,
+  occurrence: number (1-10),
+  testMethod: string,
+  detection: number (1-10),
+  actions: string,
+  status: 'Offen' | 'In Bearbeitung' | 'Abgeschlossen'
 }
-
-# Gzip Compression
-gzip on;
-gzip_types text/html text/css application/javascript;
 ```
 
-### CDN-Integration (optional)
-```html
-<!-- Für zukünftige Erweiterungen -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://cdnjs.cloudflare.com">
-```
+## 🚨 Wichtige Hinweise
 
-## 🔄 Backup-Anforderungen
+### Datenpersistenz
+⚠️ **Achtung**: Alle Daten werden nur temporär im Browser gespeichert und gehen beim Schließen des Tabs/Browsers verloren. Für produktive Nutzung sollten die Daten regelmäßig exportiert werden.
 
-### Daten-Backup
-```
-CSV-Export-Funktion (eingebaut)
-Regelmäßige Exports empfohlen (täglich/wöchentlich)
-Lokale Speicherung der Export-Dateien
-```
+### Sicherheit
+- Demo-Passwörter sind nur für Testzwecke geeignet
+- Für produktive Nutzung sollte ein echtes Backend mit Datenbankanbindung implementiert werden
+- Keine sensiblen Daten in der aktuellen Version speichern
 
-### System-Backup
-```
-HTML-Datei sichern
-Konfigurationsdateien sichern
-Webserver-Konfiguration dokumentieren
-```
+### Performance
+- Optimiert für bis zu 1000 FMEA-Einträge
+- Bei größeren Datenmengen kann die Performance beeinträchtigt werden
+- Regelmäßiger Export und Archivierung wird empfohlen
 
-## 🆙 Update-Anforderungen
+## 🤝 Mitwirken
 
-### Version Control
-```
-Git-Repository empfohlen
-Semantic Versioning (x.y.z)
-Changelog führen
-Backup vor Updates
-```
+### Bug Reports
+Falls Sie Fehler finden:
+1. Beschreiben Sie das Problem detailliert
+2. Geben Sie Browser und Version an
+3. Beschreiben Sie die Schritte zur Reproduktion
 
-### Browser-Updates
-```
-Automatische Browser-Updates aktiviert
-Kompatibilitätstests nach Updates
-Fallback-Strategien für veraltete Browser
-```
+### Feature Requests
+Für neue Funktionen:
+1. Beschreiben Sie den gewünschten Use Case
+2. Erklären Sie den Nutzen
+3. Berücksichtigen Sie die Kompatibilität
 
-## 🔍 Monitoring-Anforderungen
+## 📄 Lizenz
 
-### Performance-Monitoring
-```
-Browser DevTools Performance Tab
-Lighthouse Audits
-PageSpeed Insights (für Web-Deployment)
-```
+Dieses Projekt steht unter der MIT-Lizenz. Sie können es frei verwenden, modifizieren und verteilen.
 
-### Error-Monitoring
-```
-Browser Console für JavaScript-Fehler
-Network Tab für Ressourcen-Probleme
-Application Tab für Storage-Issues
-```
+## 🆘 Support
 
-## 📋 Checkliste für Deployment
+Bei Fragen oder Problemen:
+1. Überprüfen Sie die häufigen Fragen unten
+2. Konsultieren Sie die Bedienungsanleitung
+3. Kontaktieren Sie den Systemadministrator
 
-### Pre-Deployment
-- [ ] Browser-Kompatibilität getestet
-- [ ] Responsive Design verifiziert  
-- [ ] Performance-Tests durchgeführt
-- [ ] Accessibility-Tests bestanden
-- [ ] Sicherheitsüberprüfung abgeschlossen
+## ❓ Häufige Fragen (FAQ)
 
-### Deployment
-- [ ] Webserver konfiguriert
-- [ ] HTTPS aktiviert (für Produktion)
-- [ ] Backup-Strategie implementiert
-- [ ] Monitoring eingerichtet
-- [ ] Dokumentation aktualisiert
+**Q: Warum verschwinden meine Daten nach dem Browser-Neustart?**
+A: Die aktuelle Version speichert Daten nur temporär. Exportieren Sie regelmäßig als CSV.
 
-### Post-Deployment
-- [ ] Funktionalitätstests durchgeführt
-- [ ] Performance-Monitoring aktiv
-- [ ] Benutzer-Feedback-Kanal eingerichtet
-- [ ] Support-Dokumentation bereitgestellt
+**Q: Kann ich eigene Bewertungsskalen definieren?**
+A: Aktuell nicht möglich. Die Skalen sind nach FMEA-Standard vordefiniert.
+
+**Q: Unterstützt das System mehrere Sprachen?**
+A: Derzeit nur Deutsch. Internationalisierung ist für zukünftige Versionen geplant.
+
+**Q: Kann ich Bilder oder Dokumente anhängen?**
+A: Nicht in der aktuellen Version. Nur Textdaten werden unterstützt.
+
+**Q: Ist eine Multi-User-Version geplant?**
+A: Ja, für eine produktive Version wird eine Backend-Integration mit echter Benutzerverwaltung empfohlen.
 
 ---
 
-**Hinweis**: Diese Anforderungen gelten für die aktuelle Version 1.0.0. Für produktive Umgebungen mit Backend-Integration können zusätzliche Anforderungen gelten.
+**Version**: 1.0.0  
+**Letzte Aktualisierung**: Juni 2025  
+**Entwickelt für**: Qualitätsmanagement und Prozessoptimierung
