@@ -1,363 +1,346 @@
-# app.py
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, make_response
-from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, timedelta
-import csv
+import streamlit as st
+import sqlite3
+import pandas as pd
+from datetime import datetime, date
+import hashlib
 import io
-import os
-from functools import wraps
+import csv
+from typing import Optional, List, Dict, Any
 
-app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-here'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///fmea.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Database setup
+DATABASE = 'fmea.db'
 
-db = SQLAlchemy(app)
+def init_db():
+    """Initialize database with tables"""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    
+    # Create Users table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'user',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Create FMEA entries table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS fmea_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            function TEXT NOT NULL,
+            failure_mode TEXT NOT NULL,
+            failure_effect TEXT NOT NULL,
+            severity INTEGER NOT NULL,
+            failure_cause TEXT NOT NULL,
+            occurrence INTEGER NOT NULL,
+            test_method TEXT NOT NULL,
+            detection INTEGER NOT NULL,
+            actions TEXT,
+            status TEXT NOT NULL DEFAULT 'Offen',
+            created_by INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (created_by) REFERENCES users (id)
+        )
+    ''')
+    
+    # Create Actions table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS actions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT,
+            assigned_to TEXT,
+            priority TEXT DEFAULT 'Mittel',
+            status TEXT DEFAULT 'Offen',
+            due_date DATE,
+            fmea_entry_id INTEGER,
+            created_by INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (fmea_entry_id) REFERENCES fmea_entries (id),
+            FOREIGN KEY (created_by) REFERENCES users (id)
+        )
+    ''')
+    
+    conn.commit()
+    
+    # Create default users if they don't exist
+    cursor.execute("SELECT COUNT(*) FROM users")
+    if cursor.fetchone()[0] == 0:
+        # Create admin user
+        admin_hash = hashlib.sha256('admin123'.encode()).hexdigest()
+        cursor.execute("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+                      ('admin', admin_hash, 'admin'))
+        
+        # Create regular user
+        user_hash = hashlib.sha256('user123'.encode()).hexdigest()
+        cursor.execute("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+                      ('user', user_hash, 'user'))
+        
+        conn.commit()
+        
+        # Add sample FMEA entries
+        sample_entries = [
+            ('Motor starten', 'Motor startet nicht', 'System funktioniert nicht, Produktionsausfall', 8,
+             'Defekte Zündkerze, leere Batterie', 3, 'Visuelle Prüfung, Spannungsmessung', 2,
+             'Wartungsplan erstellen, Ersatzteile bevorraten', 'Offen', 1),
+            ('Bremssystem', 'Bremsen versagen', 'Sicherheitsrisiko, mögliche Unfälle', 10,
+             'Verschlissene Bremsbeläge, Leckage im System', 2, 'Regelmäßige Inspektion, Bremstest', 3,
+             'Präventive Wartung alle 6 Monate', 'In Bearbeitung', 1),
+            ('Temperaturregelung', 'Überhitzung', 'Komponentenschäden, Systemausfall', 7,
+             'Defekter Temperatursensor, verstopfter Filter', 4, 'Temperaturüberwachung, Sensorkalibrierung', 4,
+             'Redundante Sensoren installieren', 'Abgeschlossen', 1)
+        ]
+        
+        for entry in sample_entries:
+            cursor.execute('''
+                INSERT INTO fmea_entries (function, failure_mode, failure_effect, severity, failure_cause,
+                                        occurrence, test_method, detection, actions, status, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', entry)
+        
+        conn.commit()
+    
+    conn.close()
 
-# Database Models
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash = db.Column(db.String(120), nullable=False)
-    role = db.Column(db.String(20), nullable=False, default='user')  # 'admin' or 'user'
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+def hash_password(password: str) -> str:
+    """Hash password using SHA256"""
+    return hashlib.sha256(password.encode()).hexdigest()
 
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+def verify_password(password: str, hash: str) -> bool:
+    """Verify password against hash"""
+    return hashlib.sha256(password.encode()).hexdigest() == hash
 
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
-
-class FMEAEntry(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    function = db.Column(db.String(200), nullable=False)
-    failure_mode = db.Column(db.String(200), nullable=False)
-    failure_effect = db.Column(db.Text, nullable=False)
-    severity = db.Column(db.Integer, nullable=False)  # 1-10
-    failure_cause = db.Column(db.Text, nullable=False)
-    occurrence = db.Column(db.Integer, nullable=False)  # 1-10
-    test_method = db.Column(db.String(200), nullable=False)
-    detection = db.Column(db.Integer, nullable=False)  # 1-10
-    actions = db.Column(db.Text)
-    status = db.Column(db.String(50), nullable=False, default='Offen')
-    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    @property
-    def rpn(self):
-        return self.severity * self.occurrence * self.detection
-
-    @property
-    def risk_level(self):
-        rpn = self.rpn
-        if rpn > 100:
-            return 'high'
-        elif rpn > 50:
-            return 'medium'
-        else:
-            return 'low'
-
-    def to_dict(self):
+def authenticate_user(username: str, password: str) -> Optional[Dict[str, Any]]:
+    """Authenticate user and return user data"""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT id, username, password_hash, role FROM users WHERE username = ?", (username,))
+    user = cursor.fetchone()
+    conn.close()
+    
+    if user and verify_password(password, user[2]):
         return {
-            'id': self.id,
-            'function': self.function,
-            'failure_mode': self.failure_mode,
-            'failure_effect': self.failure_effect,
-            'severity': self.severity,
-            'failure_cause': self.failure_cause,
-            'occurrence': self.occurrence,
-            'test_method': self.test_method,
-            'detection': self.detection,
-            'actions': self.actions,
-            'status': self.status,
-            'rpn': self.rpn,
-            'risk_level': self.risk_level,
-            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M')
+            'id': user[0],
+            'username': user[1],
+            'role': user[3]
         }
+    return None
 
-class Action(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(200), nullable=False)
-    description = db.Column(db.Text)
-    assigned_to = db.Column(db.String(100))
-    priority = db.Column(db.String(20), default='Mittel')  # Niedrig, Mittel, Hoch
-    status = db.Column(db.String(50), default='Offen')
-    due_date = db.Column(db.Date)
-    fmea_entry_id = db.Column(db.Integer, db.ForeignKey('fmea_entry.id'))
-    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    fmea_entry = db.relationship('FMEAEntry', backref=db.backref('related_actions', lazy=True))
-
-# Authentication decorator
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            return redirect(url_for('login'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            return redirect(url_for('login'))
-        user = User.query.get(session['user_id'])
-        if not user or user.role != 'admin':
-            flash('Keine Berechtigung für diese Aktion.', 'error')
-            return redirect(url_for('dashboard'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-# Routes
-@app.route('/')
-def index():
-    if 'user_id' in session:
-        return redirect(url_for('dashboard'))
-    return redirect(url_for('login'))
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        
-        user = User.query.filter_by(username=username).first()
-        
-        if user and user.check_password(password):
-            session['user_id'] = user.id
-            session['username'] = user.username
-            session['role'] = user.role
-            flash(f'Willkommen, {user.username}!', 'success')
-            return redirect(url_for('dashboard'))
-        else:
-            flash('Ungültige Anmeldedaten!', 'error')
+def get_fmea_entries(search: str = '', risk_filter: str = '', status_filter: str = '') -> List[Dict[str, Any]]:
+    """Get FMEA entries with optional filters"""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
     
-    return render_template('login.html')
-
-@app.route('/logout')
-def logout():
-    session.clear()
-    flash('Sie wurden erfolgreich abgemeldet.', 'info')
-    return redirect(url_for('login'))
-
-@app.route('/dashboard')
-@login_required
-def dashboard():
-    # Get filter parameters
-    search = request.args.get('search', '')
-    risk_filter = request.args.get('risk_filter', '')
-    status_filter = request.args.get('status_filter', '')
-    
-    # Build query
-    query = FMEAEntry.query
+    query = '''
+        SELECT id, function, failure_mode, failure_effect, severity, failure_cause,
+               occurrence, test_method, detection, actions, status, created_at, updated_at
+        FROM fmea_entries
+        WHERE 1=1
+    '''
+    params = []
     
     if search:
-        query = query.filter(
-            db.or_(
-                FMEAEntry.function.contains(search),
-                FMEAEntry.failure_mode.contains(search),
-                FMEAEntry.failure_cause.contains(search),
-                FMEAEntry.failure_effect.contains(search)
-            )
-        )
+        query += " AND (function LIKE ? OR failure_mode LIKE ? OR failure_cause LIKE ? OR failure_effect LIKE ?)"
+        search_param = f'%{search}%'
+        params.extend([search_param, search_param, search_param, search_param])
     
     if status_filter:
-        query = query.filter(FMEAEntry.status == status_filter)
+        query += " AND status = ?"
+        params.append(status_filter)
     
-    entries = query.order_by(FMEAEntry.created_at.desc()).all()
+    query += " ORDER BY created_at DESC"
     
-    # Apply risk filter (after query since RPN is calculated)
-    if risk_filter:
-        if risk_filter == 'high':
-            entries = [e for e in entries if e.rpn > 100]
-        elif risk_filter == 'medium':
-            entries = [e for e in entries if 50 <= e.rpn <= 100]
-        elif risk_filter == 'low':
-            entries = [e for e in entries if e.rpn < 50]
+    cursor.execute(query, params)
+    entries = cursor.fetchall()
+    conn.close()
     
-    # Calculate statistics
-    total_entries = len(entries)
-    high_risk_count = len([e for e in entries if e.rpn > 100])
-    open_count = len([e for e in entries if e.status == 'Offen'])
-    completed_count = len([e for e in entries if e.status == 'Abgeschlossen'])
+    result = []
+    for entry in entries:
+        rpn = entry[4] * entry[6] * entry[8]  # severity * occurrence * detection
+        risk_level = 'high' if rpn > 100 else 'medium' if rpn > 50 else 'low'
+        
+        # Apply risk filter
+        if risk_filter and risk_filter != risk_level:
+            continue
+            
+        result.append({
+            'id': entry[0],
+            'function': entry[1],
+            'failure_mode': entry[2],
+            'failure_effect': entry[3],
+            'severity': entry[4],
+            'failure_cause': entry[5],
+            'occurrence': entry[6],
+            'test_method': entry[7],
+            'detection': entry[8],
+            'actions': entry[9],
+            'status': entry[10],
+            'created_at': entry[11],
+            'updated_at': entry[12],
+            'rpn': rpn,
+            'risk_level': risk_level
+        })
     
-    stats = {
-        'total': total_entries,
-        'high_risk': high_risk_count,
+    return result
+
+def add_fmea_entry(entry_data: Dict[str, Any]) -> bool:
+    """Add new FMEA entry"""
+    try:
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO fmea_entries (function, failure_mode, failure_effect, severity, failure_cause,
+                                    occurrence, test_method, detection, actions, status, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            entry_data['function'], entry_data['failure_mode'], entry_data['failure_effect'],
+            entry_data['severity'], entry_data['failure_cause'], entry_data['occurrence'],
+            entry_data['test_method'], entry_data['detection'], entry_data['actions'],
+            entry_data['status'], entry_data['created_by']
+        ))
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Speichern: {str(e)}")
+        return False
+
+def update_fmea_entry(entry_id: int, entry_data: Dict[str, Any]) -> bool:
+    """Update existing FMEA entry"""
+    try:
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE fmea_entries 
+            SET function=?, failure_mode=?, failure_effect=?, severity=?, failure_cause=?,
+                occurrence=?, test_method=?, detection=?, actions=?, status=?, updated_at=?
+            WHERE id=?
+        ''', (
+            entry_data['function'], entry_data['failure_mode'], entry_data['failure_effect'],
+            entry_data['severity'], entry_data['failure_cause'], entry_data['occurrence'],
+            entry_data['test_method'], entry_data['detection'], entry_data['actions'],
+            entry_data['status'], datetime.now().isoformat(), entry_id
+        ))
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Aktualisieren: {str(e)}")
+        return False
+
+def delete_fmea_entry(entry_id: int) -> bool:
+    """Delete FMEA entry"""
+    try:
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM fmea_entries WHERE id=?", (entry_id,))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Löschen: {str(e)}")
+        return False
+
+def get_actions() -> List[Dict[str, Any]]:
+    """Get all actions"""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT a.id, a.title, a.description, a.assigned_to, a.priority, a.status, 
+               a.due_date, a.fmea_entry_id, a.created_at, f.function
+        FROM actions a
+        LEFT JOIN fmea_entries f ON a.fmea_entry_id = f.id
+        ORDER BY a.created_at DESC
+    ''')
+    
+    actions = cursor.fetchall()
+    conn.close()
+    
+    return [{
+        'id': action[0],
+        'title': action[1],
+        'description': action[2],
+        'assigned_to': action[3],
+        'priority': action[4],
+        'status': action[5],
+        'due_date': action[6],
+        'fmea_entry_id': action[7],
+        'created_at': action[8],
+        'fmea_function': action[9]
+    } for action in actions]
+
+def add_action(action_data: Dict[str, Any]) -> bool:
+    """Add new action"""
+    try:
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO actions (title, description, assigned_to, priority, status, due_date, fmea_entry_id, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            action_data['title'], action_data['description'], action_data['assigned_to'],
+            action_data['priority'], action_data['status'], action_data['due_date'],
+            action_data['fmea_entry_id'], action_data['created_by']
+        ))
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Speichern der Maßnahme: {str(e)}")
+        return False
+
+def delete_action(action_id: int) -> bool:
+    """Delete action"""
+    try:
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM actions WHERE id=?", (action_id,))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Löschen der Maßnahme: {str(e)}")
+        return False
+
+def get_statistics() -> Dict[str, Any]:
+    """Get dashboard statistics"""
+    entries = get_fmea_entries()
+    
+    total = len(entries)
+    high_risk = len([e for e in entries if e['rpn'] > 100])
+    medium_risk = len([e for e in entries if 50 <= e['rpn'] <= 100])
+    low_risk = len([e for e in entries if e['rpn'] < 50])
+    
+    open_count = len([e for e in entries if e['status'] == 'Offen'])
+    in_progress = len([e for e in entries if e['status'] == 'In Bearbeitung'])
+    completed = len([e for e in entries if e['status'] == 'Abgeschlossen'])
+    
+    return {
+        'total': total,
+        'high_risk': high_risk,
+        'medium_risk': medium_risk,
+        'low_risk': low_risk,
         'open': open_count,
-        'completed': completed_count,
-        'completion_rate': round((completed_count / total_entries * 100) if total_entries > 0 else 0, 1)
+        'in_progress': in_progress,
+        'completed': completed,
+        'completion_rate': round((completed / total * 100) if total > 0 else 0, 1)
     }
-    
-    return render_template('dashboard.html', entries=entries, stats=stats,
-                         search=search, risk_filter=risk_filter, status_filter=status_filter)
 
-@app.route('/add_entry', methods=['GET', 'POST'])
-@login_required
-def add_entry():
-    if request.method == 'POST':
-        try:
-            entry = FMEAEntry(
-                function=request.form['function'],
-                failure_mode=request.form['failure_mode'],
-                failure_effect=request.form['failure_effect'],
-                severity=int(request.form['severity']),
-                failure_cause=request.form['failure_cause'],
-                occurrence=int(request.form['occurrence']),
-                test_method=request.form['test_method'],
-                detection=int(request.form['detection']),
-                actions=request.form.get('actions', ''),
-                status=request.form['status'],
-                created_by=session['user_id']
-            )
-            
-            db.session.add(entry)
-            db.session.commit()
-            flash('FMEA-Eintrag erfolgreich hinzugefügt!', 'success')
-            return redirect(url_for('dashboard'))
-            
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Fehler beim Speichern: {str(e)}', 'error')
-    
-    return render_template('add_entry.html')
-
-@app.route('/edit_entry/<int:id>', methods=['GET', 'POST'])
-@login_required
-def edit_entry(id):
-    entry = FMEAEntry.query.get_or_404(id)
-    
-    if request.method == 'POST':
-        try:
-            entry.function = request.form['function']
-            entry.failure_mode = request.form['failure_mode']
-            entry.failure_effect = request.form['failure_effect']
-            entry.severity = int(request.form['severity'])
-            entry.failure_cause = request.form['failure_cause']
-            entry.occurrence = int(request.form['occurrence'])
-            entry.test_method = request.form['test_method']
-            entry.detection = int(request.form['detection'])
-            entry.actions = request.form.get('actions', '')
-            entry.status = request.form['status']
-            entry.updated_at = datetime.utcnow()
-            
-            db.session.commit()
-            flash('FMEA-Eintrag erfolgreich aktualisiert!', 'success')
-            return redirect(url_for('dashboard'))
-            
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Fehler beim Aktualisieren: {str(e)}', 'error')
-    
-    return render_template('edit_entry.html', entry=entry)
-
-@app.route('/delete_entry/<int:id>')
-@admin_required
-def delete_entry(id):
-    entry = FMEAEntry.query.get_or_404(id)
-    try:
-        db.session.delete(entry)
-        db.session.commit()
-        flash('FMEA-Eintrag erfolgreich gelöscht!', 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Fehler beim Löschen: {str(e)}', 'error')
-    
-    return redirect(url_for('dashboard'))
-
-@app.route('/actions')
-@admin_required
-def manage_actions():
-    actions = Action.query.order_by(Action.created_at.desc()).all()
-    return render_template('actions.html', actions=actions)
-
-@app.route('/add_action', methods=['GET', 'POST'])
-@admin_required
-def add_action():
-    if request.method == 'POST':
-        try:
-            due_date = None
-            if request.form.get('due_date'):
-                due_date = datetime.strptime(request.form['due_date'], '%Y-%m-%d').date()
-            
-            action = Action(
-                title=request.form['title'],
-                description=request.form.get('description', ''),
-                assigned_to=request.form.get('assigned_to', ''),
-                priority=request.form['priority'],
-                status=request.form['status'],
-                due_date=due_date,
-                fmea_entry_id=request.form.get('fmea_entry_id') or None,
-                created_by=session['user_id']
-            )
-            
-            db.session.add(action)
-            db.session.commit()
-            flash('Maßnahme erfolgreich hinzugefügt!', 'success')
-            return redirect(url_for('manage_actions'))
-            
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Fehler beim Speichern: {str(e)}', 'error')
-    
-    fmea_entries = FMEAEntry.query.all()
-    return render_template('add_action.html', fmea_entries=fmea_entries)
-
-@app.route('/edit_action/<int:id>', methods=['GET', 'POST'])
-@admin_required
-def edit_action(id):
-    action = Action.query.get_or_404(id)
-    
-    if request.method == 'POST':
-        try:
-            due_date = None
-            if request.form.get('due_date'):
-                due_date = datetime.strptime(request.form['due_date'], '%Y-%m-%d').date()
-            
-            action.title = request.form['title']
-            action.description = request.form.get('description', '')
-            action.assigned_to = request.form.get('assigned_to', '')
-            action.priority = request.form['priority']
-            action.status = request.form['status']
-            action.due_date = due_date
-            action.fmea_entry_id = request.form.get('fmea_entry_id') or None
-            action.updated_at = datetime.utcnow()
-            
-            db.session.commit()
-            flash('Maßnahme erfolgreich aktualisiert!', 'success')
-            return redirect(url_for('manage_actions'))
-            
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Fehler beim Aktualisieren: {str(e)}', 'error')
-    
-    fmea_entries = FMEAEntry.query.all()
-    return render_template('edit_action.html', action=action, fmea_entries=fmea_entries)
-
-@app.route('/delete_action/<int:id>')
-@admin_required
-def delete_action(id):
-    action = Action.query.get_or_404(id)
-    try:
-        db.session.delete(action)
-        db.session.commit()
-        flash('Maßnahme erfolgreich gelöscht!', 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Fehler beim Löschen: {str(e)}', 'error')
-    
-    return redirect(url_for('manage_actions'))
-
-@app.route('/export_csv')
-@login_required
-def export_csv():
-    entries = FMEAEntry.query.all()
-    
+def export_to_csv(entries: List[Dict[str, Any]]) -> str:
+    """Export FMEA entries to CSV"""
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';')
     
@@ -372,128 +355,340 @@ def export_csv():
     # Data
     for entry in entries:
         writer.writerow([
-            entry.function,
-            entry.failure_mode,
-            entry.failure_effect,
-            entry.severity,
-            entry.failure_cause,
-            entry.occurrence,
-            entry.test_method,
-            entry.detection,
-            entry.rpn,
-            entry.actions or '',
-            entry.status,
-            entry.created_at.strftime('%Y-%m-%d %H:%M')
+            entry['function'],
+            entry['failure_mode'],
+            entry['failure_effect'],
+            entry['severity'],
+            entry['failure_cause'],
+            entry['occurrence'],
+            entry['test_method'],
+            entry['detection'],
+            entry['rpn'],
+            entry['actions'] or '',
+            entry['status'],
+            entry['created_at']
         ])
     
-    output.seek(0)
-    
-    # Create response
-    response = make_response(output.getvalue())
-    response.headers['Content-Disposition'] = f'attachment; filename=FMEA_Export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
-    response.headers['Content-type'] = 'text/csv; charset=utf-8'
-    
-    return response
+    return output.getvalue()
 
-@app.route('/api/statistics')
-@login_required
-def api_statistics():
-    entries = FMEAEntry.query.all()
+def main():
+    st.set_page_config(
+        page_title="FMEA Management System",
+        page_icon="⚠️",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
     
-    total = len(entries)
-    high_risk = len([e for e in entries if e.rpn > 100])
-    medium_risk = len([e for e in entries if 50 <= e.rpn <= 100])
-    low_risk = len([e for e in entries if e.rpn < 50])
+    # Initialize database
+    init_db()
     
-    open_count = len([e for e in entries if e.status == 'Offen'])
-    in_progress = len([e for e in entries if e.status == 'In Bearbeitung'])
-    completed = len([e for e in entries if e.status == 'Abgeschlossen'])
+    # Initialize session state
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+    if 'user' not in st.session_state:
+        st.session_state.user = None
     
-    return jsonify({
-        'total_entries': total,
-        'risk_distribution': {
-            'high': high_risk,
-            'medium': medium_risk,
-            'low': low_risk
-        },
-        'status_distribution': {
-            'open': open_count,
-            'in_progress': in_progress,
-            'completed': completed
-        },
-        'completion_rate': round((completed / total * 100) if total > 0 else 0, 1)
-    })
-
-def init_db():
-    """Initialize database with sample data"""
-    db.create_all()
-    
-    # Create admin user if not exists
-    if not User.query.filter_by(username='admin').first():
-        admin = User(username='admin', role='admin')
-        admin.set_password('admin123')
-        db.session.add(admin)
-    
-    # Create regular user if not exists
-    if not User.query.filter_by(username='user').first():
-        user = User(username='user', role='user')
-        user.set_password('user123')
-        db.session.add(user)
-    
-    db.session.commit()
-    
-    # Add sample FMEA entries if none exist
-    if FMEAEntry.query.count() == 0:
-        admin_user = User.query.filter_by(username='admin').first()
+    # Authentication
+    if not st.session_state.authenticated:
+        st.title("🔐 FMEA System - Anmeldung")
         
-        sample_entries = [
-            FMEAEntry(
-                function='Motor starten',
-                failure_mode='Motor startet nicht',
-                failure_effect='System funktioniert nicht, Produktionsausfall',
-                severity=8,
-                failure_cause='Defekte Zündkerze, leere Batterie',
-                occurrence=3,
-                test_method='Visuelle Prüfung, Spannungsmessung',
-                detection=2,
-                actions='Wartungsplan erstellen, Ersatzteile bevorraten',
-                status='Offen',
-                created_by=admin_user.id
-            ),
-            FMEAEntry(
-                function='Bremssystem',
-                failure_mode='Bremsen versagen',
-                failure_effect='Sicherheitsrisiko, mögliche Unfälle',
-                severity=10,
-                failure_cause='Verschlissene Bremsbeläge, Leckage im System',
-                occurrence=2,
-                test_method='Regelmäßige Inspektion, Bremstest',
-                detection=3,
-                actions='Präventive Wartung alle 6 Monate',
-                status='In Bearbeitung',
-                created_by=admin_user.id
-            ),
-            FMEAEntry(
-                function='Temperaturregelung',
-                failure_mode='Überhitzung',
-                failure_effect='Komponentenschäden, Systemausfall',
-                severity=7,
-                failure_cause='Defekter Temperatursensor, verstopfter Filter',
-                occurrence=4,
-                test_method='Temperaturüberwachung, Sensorkalibrierung',
-                detection=4,
-                actions='Redundante Sensoren installieren',
-                status='Abgeschlossen',
-                created_by=admin_user.id
+        with st.form("login_form"):
+            username = st.text_input("Benutzername")
+            password = st.text_input("Passwort", type="password")
+            submit = st.form_submit_button("Anmelden")
+            
+            if submit:
+                user = authenticate_user(username, password)
+                if user:
+                    st.session_state.authenticated = True
+                    st.session_state.user = user
+                    st.success(f"Willkommen, {user['username']}!")
+                    st.rerun()
+                else:
+                    st.error("Ungültige Anmeldedaten!")
+        
+        st.info("Demo-Zugangsdaten: admin/admin123 oder user/user123")
+        return
+    
+    # Main application
+    st.title("⚠️ FMEA Management System")
+    
+    # Sidebar
+    with st.sidebar:
+        st.write(f"Eingeloggt als: **{st.session_state.user['username']}** ({st.session_state.user['role']})")
+        
+        if st.button("Abmelden"):
+            st.session_state.authenticated = False
+            st.session_state.user = None
+            st.rerun()
+        
+        st.divider()
+        
+        menu_options = ["Dashboard", "FMEA Eintrag hinzufügen"]
+        if st.session_state.user['role'] == 'admin':
+            menu_options.append("Maßnahmen verwalten")
+        
+        selected_page = st.selectbox("Navigation", menu_options)
+    
+    # Dashboard
+    if selected_page == "Dashboard":
+        st.header("📊 Dashboard")
+        
+        # Statistics
+        stats = get_statistics()
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Gesamt Einträge", stats['total'])
+        with col2:
+            st.metric("Hohe Risiken", stats['high_risk'])
+        with col3:
+            st.metric("Offen", stats['open'])
+        with col4:
+            st.metric("Abschlussrate", f"{stats['completion_rate']}%")
+        
+        # Filters
+        st.subheader("Filter")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            search = st.text_input("Suche", key="search")
+        with col2:
+            risk_filter = st.selectbox("Risiko", ["", "high", "medium", "low"], key="risk_filter")
+        with col3:
+            status_filter = st.selectbox("Status", ["", "Offen", "In Bearbeitung", "Abgeschlossen"], key="status_filter")
+        with col4:
+            if st.button("Filter anwenden"):
+                st.rerun()
+        
+        # Get filtered entries
+        entries = get_fmea_entries(search, risk_filter, status_filter)
+        
+        # Export button
+        if entries:
+            csv_data = export_to_csv(entries)
+            st.download_button(
+                label="📥 Als CSV exportieren",
+                data=csv_data,
+                file_name=f"FMEA_Export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv"
             )
-        ]
         
-        for entry in sample_entries:
-            db.session.add(entry)
+        # Display entries
+        st.subheader(f"FMEA Einträge ({len(entries)})")
         
-        db.session.commit()
+        if entries:
+            for entry in entries:
+                with st.expander(f"🔧 {entry['function']} - {entry['failure_mode']} (RPN: {entry['rpn']})"):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.write(f"**Fehlerfolge:** {entry['failure_effect']}")
+                        st.write(f"**Fehlerursache:** {entry['failure_cause']}")
+                        st.write(f"**Prüfmaßnahme:** {entry['test_method']}")
+                        st.write(f"**Maßnahmen:** {entry['actions'] or 'Keine'}")
+                    
+                    with col2:
+                        st.write(f"**Auftretenswahrscheinlichkeit:** {entry['severity']}")
+                        st.write(f"**Auftreten:** {entry['occurrence']}")
+                        st.write(f"**Entdeckung:** {entry['detection']}")
+                        st.write(f"**RPN:** {entry['rpn']}")
+                        
+                        # Risk level badge
+                        if entry['risk_level'] == 'high':
+                            st.error(f"🔴 Hohes Risiko")
+                        elif entry['risk_level'] == 'medium':
+                            st.warning(f"🟡 Mittleres Risiko")
+                        else:
+                            st.success(f"🟢 Niedriges Risiko")
+                        
+                        st.write(f"**Status:** {entry['status']}")
+                    
+                    # Action buttons
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        if st.button(f"✏️ Bearbeiten", key=f"edit_{entry['id']}"):
+                            st.session_state.edit_entry = entry
+                    with col2:
+                        if st.session_state.user['role'] == 'admin':
+                            if st.button(f"🗑️ Löschen", key=f"delete_{entry['id']}"):
+                                if delete_fmea_entry(entry['id']):
+                                    st.success("Eintrag gelöscht!")
+                                    st.rerun()
+                    with col3:
+                        st.write(f"Erstellt: {entry['created_at'][:16]}")
+        else:
+            st.info("Keine Einträge gefunden.")
+        
+        # Edit form
+        if 'edit_entry' in st.session_state:
+            st.subheader("✏️ Eintrag bearbeiten")
+            entry = st.session_state.edit_entry
+            
+            with st.form("edit_form"):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    function = st.text_input("Funktion", value=entry['function'])
+                    failure_mode = st.text_input("Fehlerart", value=entry['failure_mode'])
+                    failure_effect = st.text_area("Fehlerfolge", value=entry['failure_effect'])
+                    severity = st.slider("Auftretenswahrscheinlichkeit", 1, 10, entry['severity'])
+                    failure_cause = st.text_area("Fehlerursache", value=entry['failure_cause'])
+                
+                with col2:
+                    occurrence = st.slider("Auftreten", 1, 10, entry['occurrence'])
+                    test_method = st.text_input("Prüfmaßnahme", value=entry['test_method'])
+                    detection = st.slider("Entdeckung", 1, 10, entry['detection'])
+                    actions = st.text_area("Maßnahmen", value=entry['actions'] or '')
+                    status = st.selectbox("Status", ["Offen", "In Bearbeitung", "Abgeschlossen"], 
+                                        index=["Offen", "In Bearbeitung", "Abgeschlossen"].index(entry['status']))
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.form_submit_button("💾 Speichern"):
+                        entry_data = {
+                            'function': function,
+                            'failure_mode': failure_mode,
+                            'failure_effect': failure_effect,
+                            'severity': severity,
+                            'failure_cause': failure_cause,
+                            'occurrence': occurrence,
+                            'test_method': test_method,
+                            'detection': detection,
+                            'actions': actions,
+                            'status': status
+                        }
+                        
+                        if update_fmea_entry(entry['id'], entry_data):
+                            st.success("Eintrag aktualisiert!")
+                            del st.session_state.edit_entry
+                            st.rerun()
+                
+                with col2:
+                    if st.form_submit_button("❌ Abbrechen"):
+                        del st.session_state.edit_entry
+                        st.rerun()
+    
+    # Add FMEA Entry
+    elif selected_page == "FMEA Eintrag hinzufügen":
+        st.header("➕ Neuen FMEA Eintrag hinzufügen")
+        
+        with st.form("add_entry_form"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                function = st.text_input("Funktion *")
+                failure_mode = st.text_input("Fehlerart *")
+                failure_effect = st.text_area("Fehlerfolge *")
+                severity = st.slider("Auftretenswahrscheinlichkeit (1-10)", 1, 10, 5)
+                failure_cause = st.text_area("Fehlerursache *")
+            
+            with col2:
+                occurrence = st.slider("Auftreten (1-10)", 1, 10, 5)
+                test_method = st.text_input("Prüfmaßnahme *")
+                detection = st.slider("Entdeckung (1-10)", 1, 10, 5)
+                actions = st.text_area("Maßnahmen")
+                status = st.selectbox("Status", ["Offen", "In Bearbeitung", "Abgeschlossen"])
+            
+            # Show calculated RPN
+            rpn = severity * occurrence * detection
+            risk_level = 'Hoch' if rpn > 100 else 'Mittel' if rpn > 50 else 'Niedrig'
+            st.info(f"Berechnete RPN: {rpn} (Risiko: {risk_level})")
+            
+            if st.form_submit_button("💾 Eintrag speichern"):
+                if function and failure_mode and failure_effect and failure_cause and test_method:
+                    entry_data = {
+                        'function': function,
+                        'failure_mode': failure_mode,
+                        'failure_effect': failure_effect,
+                        'severity': severity,
+                        'failure_cause': failure_cause,
+                        'occurrence': occurrence,
+                        'test_method': test_method,
+                        'detection': detection,
+                        'actions': actions,
+                        'status': status,
+                        'created_by': st.session_state.user['id']
+                    }
+                    
+                    if add_fmea_entry(entry_data):
+                        st.success("FMEA-Eintrag erfolgreich hinzugefügt!")
+                        st.rerun()
+                else:
+                    st.error("Bitte füllen Sie alle Pflichtfelder (*) aus.")
+    
+    # Manage Actions (Admin only)
+    elif selected_page == "Maßnahmen verwalten" and st.session_state.user['role'] == 'admin':
+        st.header("📋 Maßnahmen verwalten")
+        
+        # Add new action
+        with st.expander("➕ Neue Maßnahme hinzufügen"):
+            with st.form("add_action_form"):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    title = st.text_input("Titel *")
+                    description = st.text_area("Beschreibung")
+                    assigned_to = st.text_input("Zugewiesen an")
+                
+                with col2:
+                    priority = st.selectbox("Priorität", ["Niedrig", "Mittel", "Hoch"])
+                    action_status = st.selectbox("Status", ["Offen", "In Bearbeitung", "Abgeschlossen"])
+                    due_date = st.date_input("Fälligkeitsdatum", value=None)
+                
+                # FMEA Entry selection
+                entries = get_fmea_entries()
+                fmea_options = ["Keine Zuordnung"] + [f"{e['id']}: {e['function']} - {e['failure_mode']}" for e in entries]
+                fmea_selection = st.selectbox("FMEA Eintrag", fmea_options)
+                
+                if st.form_submit_button("💾 Maßnahme speichern"):
+                    if title:
+                        fmea_entry_id = None
+                        if fmea_selection != "Keine Zuordnung":
+                            fmea_entry_id = int(fmea_selection.split(":")[0])
+                        
+                        action_data = {
+                            'title': title,
+                            'description': description,
+                            'assigned_to': assigned_to,
+                            'priority': priority,
+                            'status': action_status,
+                            'due_date': due_date.isoformat() if due_date else None,
+                            'fmea_entry_id': fmea_entry_id,
+                            'created_by': st.session_state.user['id']
+                        }
+                        
+                        if add_action(action_data):
+                            st.success("Maßnahme erfolgreich hinzugefügt!")
+                            st.rerun()
+                    else:
+                        st.error("Bitte geben Sie einen Titel ein.")
+        
+        # Display actions
+        actions = get_actions()
+        st.subheader(f"Aktuelle Maßnahmen ({len(actions)})")
+        
+        if actions:
+            for action in actions:
+                with st.expander(f"📋 {action['title']} - {action['status']}"):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.write(f"**Beschreibung:** {action['description'] or 'Keine'}")
+                        st.write(f"**Zugewiesen an:** {action['assigned_to'] or 'Nicht zugewiesen'}")
+                        st.write(f"**Priorität:** {action['priority']}")
+                    
+                    with col2:
+                        st.write(f"**Status:** {action['status']}")
+                        st.write(f"**Fälligkeitsdatum:** {action['due_date'] or 'Nicht gesetzt'}")
+                        st.write(f"**FMEA Eintrag:** {action['fmea_function'] or 'Nicht zugeordnet'}")
+                    
+                    if st.button(f"🗑️ Löschen", key=f"delete_action_{action['id']}"):
+                        if delete_action(action['id']):
+                            st.success("Maßnahme gelöscht!")
+                            st.rerun()
+        else:
+            st.info("Keine Maßnahmen vorhanden.")
 
-if __name__ == '__main__':
-    with app.app_context():
-        init_db()
-    app.run(debug=True, host='0.0.0.0', port=5000)
+if __name__ == "__main__":
+    main()
