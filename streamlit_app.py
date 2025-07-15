@@ -374,7 +374,7 @@ def export_to_csv(entries: List[Dict[str, Any]]) -> str:
 def main():
     st.set_page_config(
         page_title="FMEA Management System",
-        page_icon="⚠️",
+        #page_icon="⚠️",
         layout="wide",
         initial_sidebar_state="expanded"
     )
@@ -411,7 +411,7 @@ def main():
         return
     
     # Main application
-    st.title("⚠️ FMEA Management System")
+    st.title("FMEA Management System")
     
     # Sidebar
     with st.sidebar:
